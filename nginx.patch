@@ -1,0 +1,344 @@
+diff -r -u nginx-1.2.5/src/core/ngx_string.h nginx-bjtu/src/core/ngx_string.h
+--- nginx-1.2.5/src/core/ngx_string.h	2012-09-25 02:34:04.000000000 +0800
++++ nginx-bjtu/src/core/ngx_string.h	2013-06-11 11:54:44.115275214 +0800
+@@ -77,6 +77,22 @@
+     return NULL;
+ }
+ 
++static ngx_inline u_char *
++ngx_strrlchr(u_char *p, u_char *last, u_char c)
++{
++    last--;
++    while (last >= p) {
++
++        if (*last == c) {
++            return last;
++        }
++
++        last--;
++    }
++
++    return NULL;
++}
++
+ 
+ /*
+  * msvc and icc7 compile memset() to the inline "rep stos"
+diff -r -u nginx-1.2.5/src/http/modules/ngx_http_autoindex_module.c nginx-bjtu/src/http/modules/ngx_http_autoindex_module.c
+--- nginx-1.2.5/src/http/modules/ngx_http_autoindex_module.c	2012-02-28 19:31:05.000000000 +0800
++++ nginx-bjtu/src/http/modules/ngx_http_autoindex_module.c	2013-06-11 11:54:45.728608505 +0800
+@@ -118,17 +118,61 @@
+ 
+ static u_char title[] =
+ "<html>" CRLF
+-"<head><title>Index of "
++"<head>" CRLF
++"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" >" CRLF
++"<link href=\"/cn/style.css\" rel=\"stylesheet\" type=\"text/css\" />" CRLF
++"<style type=\"text/css\"> \
++table { \
++      border: none; \
++      padding: 0; \
++      margin 0; \
++      } \
++      th { \
++      text-align: left; \
++      white-space: nowrap; \
++      border-bottom: 1px solid #DADADA; \
++      argin: 0; \
++      background-color: #F6F6F6; \
++      padding: 4px; \
++      } \
++      td { \
++      padding: 4px; \
++      border-bottom: 1px solid #EEE; \
++      margin: 0; \
++      } \
++      td.date { \
++      white-space: nowrap; \
++      text-align: right; \
++      }" CRLF
++"</style>" CRLF
++"<title>Index of "
+ ;
+ 
+ 
+ static u_char header[] =
+ "</title></head>" CRLF
+-"<body bgcolor=\"white\">" CRLF
+-"<h1>Index of "
++"<div id=\"header\">" CRLF
++"<h1><a href=\"/cn/index.html\" title=\"BJTU free and open source software mirror\"><span>BJTU mirror</span></a></h1>" CRLF
++"<ul>" CRLF
++"<li><a class=\"tab-home highlight-gray\" href=\"/cn/index.html\" title=\"Home\">Home</a></li>" CRLF
++"<li><a class=\"tab-update highlight-yellow\" href=\"/cn/update.html\" title=\"Update history\">Update</a></li>" CRLF
++"<li><a class=\"tab-news highlight-purple\" href=\"/cn/news.html\" title=\"News\">News</a></li>" CRLF
++"<li><a class=\"tab-howto highlight-red\" href=\"/cn/howto.html\" title=\"How to use\">Howto</a></li>" CRLF
++"<li><a class=\"tab-stat highlight-green\" href=\"/cn/stat.html\" title=\"User statistic\">Statistic</a></li>" CRLF
++"<li><a class=\"tab-flow highlight-blue\" href=\"/cn/flow.html\" title=\"Flow\">Flow</a></li>" CRLF
++"</ul>" CRLF
++"</div>" CRLF
++"<div id=\"headline\">" CRLF
++"<h4> Index of "
+ ;
+ 
+ static u_char tail[] =
++"</div>" CRLF
++"</div>" CRLF
++"</div>" CRLF
++"<div id=\"footer\">" CRLF
++"<p>CopyLeft &copy; 2005 - 2012 <a href=\"http://mirror.bjtu.edu.cn\">BJTU</a>.</p>" CRLF
++"</div>" CRLF
+ "</body>" CRLF
+ "</html>" CRLF
+ ;
+@@ -366,22 +410,23 @@
+           + r->uri.len + escape_html
+           + sizeof(header) - 1
+           + r->uri.len + escape_html
+-          + sizeof("</h1>") - 1
+-          + sizeof("<hr><pre><a href=\"../\">../</a>" CRLF) - 1
+-          + sizeof("</pre><hr>") - 1
++          + sizeof("</h4></div>") - 1
++          + sizeof("<div id=\"page\"><div id=\"simple-page\"><div class=\"main\"><table><tr><td><a href=\"../\">../</a></td></tr>" CRLF) - 1
++          + sizeof("</table>") - 1
+           + sizeof(tail) - 1;
+ 
+     entry = entries.elts;
+     for (i = 0; i < entries.nelts; i++) {
+-        len += sizeof("<a href=\"") - 1
++        len += sizeof("<tr><td><a href=\"") - 1
+             + entry[i].name.len + entry[i].escape
+             + 1                                          /* 1 is for "/" */
+             + sizeof("\">") - 1
+             + entry[i].name.len - entry[i].utf_len
+             + entry[i].escape_html
+             + NGX_HTTP_AUTOINDEX_NAME_LEN + sizeof("&gt;") - 2
+-            + sizeof("</a>") - 1
+-            + sizeof(" 28-Sep-1970 12:00 ") - 1
++            + sizeof("</a></td>") - 1
++            + sizeof("<td>28-Sep-1970 12:00</td>") - 1
++            + sizeof("<td></td></tr>") - 1
+             + 20                                         /* the file size */
+             + 2;
+     }
+@@ -410,15 +455,15 @@
+         b->last = ngx_cpymem(b->last, r->uri.data, r->uri.len);
+     }
+ 
+-    b->last = ngx_cpymem(b->last, "</h1>", sizeof("</h1>") - 1);
++    b->last = ngx_cpymem(b->last, "</h4></div>", sizeof("</h4></div>") - 1);
+ 
+-    b->last = ngx_cpymem(b->last, "<hr><pre><a href=\"../\">../</a>" CRLF,
+-                         sizeof("<hr><pre><a href=\"../\">../</a>" CRLF) - 1);
++    b->last = ngx_cpymem(b->last, "<div id=\"page\"><div id=\"simple-page\"><div class=\"main\"><table><tr><td><a href=\"../\">../</a></td></tr>" CRLF,
++                         sizeof("<div id=\"page\"><div id=\"simple-page\"><div class=\"main\"><table><tr><td><a href=\"../\">../</a></td></tr>" CRLF) - 1);
+ 
+     tp = ngx_timeofday();
+ 
+     for (i = 0; i < entries.nelts; i++) {
+-        b->last = ngx_cpymem(b->last, "<a href=\"", sizeof("<a href=\"") - 1);
++        b->last = ngx_cpymem(b->last, "<tr><td><a href=\"", sizeof("<tr><td><a href=\"") - 1);
+ 
+         if (entry[i].escape) {
+             ngx_escape_uri(b->last, entry[i].name.data, entry[i].name.len,
+@@ -480,7 +525,7 @@
+         }
+ 
+         if (len > NGX_HTTP_AUTOINDEX_NAME_LEN) {
+-            b->last = ngx_cpymem(last, "..&gt;</a>", sizeof("..&gt;</a>") - 1);
++            b->last = ngx_cpymem(last, "..&gt;</a></td>", sizeof("..&gt;</a></td>") - 1);
+ 
+         } else {
+             if (entry[i].dir && NGX_HTTP_AUTOINDEX_NAME_LEN - len > 0) {
+@@ -488,22 +533,21 @@
+                 len++;
+             }
+ 
+-            b->last = ngx_cpymem(b->last, "</a>", sizeof("</a>") - 1);
++            b->last = ngx_cpymem(b->last, "</a></td>", sizeof("</a></td>") - 1);
+             ngx_memset(b->last, ' ', NGX_HTTP_AUTOINDEX_NAME_LEN - len);
+             b->last += NGX_HTTP_AUTOINDEX_NAME_LEN - len;
+         }
+ 
+-        *b->last++ = ' ';
+-
+         ngx_gmtime(entry[i].mtime + tp->gmtoff * 60 * alcf->localtime, &tm);
+ 
+-        b->last = ngx_sprintf(b->last, "%02d-%s-%d %02d:%02d ",
++        b->last = ngx_sprintf(b->last, "<td>%02d-%s-%d %02d:%02d</td>",
+                               tm.ngx_tm_mday,
+                               months[tm.ngx_tm_mon - 1],
+                               tm.ngx_tm_year,
+                               tm.ngx_tm_hour,
+                               tm.ngx_tm_min);
+ 
++        b->last = ngx_cpymem(b->last, "<td>", sizeof("<td>") - 1);
+         if (alcf->exact_size) {
+             if (entry[i].dir) {
+                 b->last = ngx_cpymem(b->last,  "                  -",
+@@ -556,6 +600,7 @@
+                 }
+             }
+         }
++        b->last = ngx_cpymem(b->last, "</td></tr>", sizeof("</td></tr>") - 1);
+ 
+         *b->last++ = CR;
+         *b->last++ = LF;
+@@ -563,7 +608,7 @@
+ 
+     /* TODO: free temporary pool */
+ 
+-    b->last = ngx_cpymem(b->last, "</pre><hr>", sizeof("</pre><hr>") - 1);
++    b->last = ngx_cpymem(b->last, "</table>", sizeof("</table>") - 1);
+ 
+     b->last = ngx_cpymem(b->last, tail, sizeof(tail) - 1);
+ 
+diff -r -u nginx-1.2.5/src/http/ngx_http_core_module.c nginx-bjtu/src/http/ngx_http_core_module.c
+--- nginx-1.2.5/src/http/ngx_http_core_module.c	2012-09-25 03:06:48.000000000 +0800
++++ nginx-bjtu/src/http/ngx_http_core_module.c	2013-06-11 11:54:45.188608519 +0800
+@@ -503,6 +503,13 @@
+       offsetof(ngx_http_core_loc_conf_t, limit_rate_after),
+       NULL },
+ 
++    { ngx_string("keepalive_autoclose"),
++      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
++                        |NGX_CONF_FLAG,
++      ngx_conf_set_flag_slot,
++      NGX_HTTP_LOC_CONF_OFFSET,
++      offsetof(ngx_http_core_loc_conf_t, keepalive_autoclose),
++      NULL },
+     { ngx_string("keepalive_timeout"),
+       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE12,
+       ngx_http_core_keepalive,
+@@ -1439,6 +1446,7 @@
+ void
+ ngx_http_update_location_config(ngx_http_request_t *r)
+ {
++    u_char *ext;
+     ngx_http_core_loc_conf_t  *clcf;
+ 
+     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+@@ -1504,6 +1512,20 @@
+              *     https://bugs.webkit.org/show_bug.cgi?id=5760
+              */
+             r->keepalive = 0;
++        } else if (clcf->keepalive_autoclose && r->headers_in.referer) {
++            /*
++             * if keepalive_autoclose is enabled, and the request is for 
++             * specific file type and has referer, then it will auto
++             * disable keep-alive.
++             */
++            ext = (u_char *)ngx_strrlchr(r->uri.data, r->uri.data+r->uri.len, '.');
++            if (ext
++                && (ngx_strncmp(ext, ".gz", 3) == 0
++                    || ngx_strncmp(ext, ".bz2", 4) == 0
++                    || ngx_strncmp(ext, ".iso", 4) == 0))
++            {
++                r->keepalive = 0;
++            }
+         }
+     }
+ 
+@@ -3494,6 +3516,7 @@
+     clcf->postpone_output = NGX_CONF_UNSET_SIZE;
+     clcf->limit_rate = NGX_CONF_UNSET_SIZE;
+     clcf->limit_rate_after = NGX_CONF_UNSET_SIZE;
++    clcf->keepalive_autoclose = NGX_CONF_UNSET;
+     clcf->keepalive_timeout = NGX_CONF_UNSET_MSEC;
+     clcf->keepalive_header = NGX_CONF_UNSET;
+     clcf->keepalive_requests = NGX_CONF_UNSET_UINT;
+@@ -3717,6 +3740,7 @@
+     ngx_conf_merge_size_value(conf->limit_rate, prev->limit_rate, 0);
+     ngx_conf_merge_size_value(conf->limit_rate_after, prev->limit_rate_after,
+                               0);
++    ngx_conf_merge_value(conf->keepalive_autoclose, prev->keepalive_autoclose, 0);
+     ngx_conf_merge_msec_value(conf->keepalive_timeout,
+                               prev->keepalive_timeout, 75000);
+     ngx_conf_merge_sec_value(conf->keepalive_header,
+diff -r -u nginx-1.2.5/src/http/ngx_http_core_module.h nginx-bjtu/src/http/ngx_http_core_module.h
+--- nginx-1.2.5/src/http/ngx_http_core_module.h	2012-06-04 19:58:12.000000000 +0800
++++ nginx-bjtu/src/http/ngx_http_core_module.h	2013-06-11 11:54:45.201941853 +0800
+@@ -365,6 +365,7 @@
+ 
+     time_t        keepalive_header;        /* keepalive_timeout */
+ 
++    ngx_flag_t    keepalive_autoclose;     /* keepalive_autoclose */
+     ngx_uint_t    keepalive_requests;      /* keepalive_requests */
+     ngx_uint_t    keepalive_disable;       /* keepalive_disable */
+     ngx_uint_t    satisfy;                 /* satisfy */
+diff -r -u nginx-1.2.5/src/http/ngx_http_special_response.c nginx-bjtu/src/http/ngx_http_special_response.c
+--- nginx-1.2.5/src/http/ngx_http_special_response.c	2012-02-27 19:43:40.000000000 +0800
++++ nginx-bjtu/src/http/ngx_http_special_response.c	2013-06-11 11:54:46.221941825 +0800
+@@ -19,14 +19,14 @@
+ 
+ 
+ static u_char ngx_http_error_full_tail[] =
+-"<hr><center>" NGINX_VER "</center>" CRLF
++//"<hr><center>" NGINX_VER "</center>" CRLF
+ "</body>" CRLF
+ "</html>" CRLF
+ ;
+ 
+ 
+ static u_char ngx_http_error_tail[] =
+-"<hr><center>nginx</center>" CRLF
++//"<hr><center>nginx</center>" CRLF
+ "</body>" CRLF
+ "</html>" CRLF
+ ;
+@@ -115,13 +115,49 @@
+ 
+ 
+ static char ngx_http_error_404_page[] =
+-"<html>" CRLF
+-"<head><title>404 Not Found</title></head>" CRLF
+-"<body bgcolor=\"white\">" CRLF
+-"<center><h1>404 Not Found</h1></center>" CRLF
++"<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">" CRLF
++"<html xmlns=\"http://www.w3.org/1999/xhtml\">" CRLF
++"<head>" CRLF
++"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" >" CRLF
++"<meta name=\"description\" content=\"Beijing Jiaotong University free and open source software mirror.\" />" CRLF
++"<title>404 - Not Found</title>" CRLF
++"<link rel=\"shortcut icon\" type=\"image/x-icon\" media=\"screen\" href=\"favicon.ico\" />" CRLF
++"<link href=\"/cn/style.css\" rel=\"stylesheet\" type=\"text/css\" />" CRLF
++"</head>" CRLF
++"<body>\
++<div id=\"header\">\
++<h1><a href=\"index.html\" title=\"BJTU free and open source software mirror\"><span>BJTU mirror</span></a></h1>\
++<ul>\
++<li><a class=\"tab-home highlight-gray\" href=\"/cn/index.html\" title=\"Home\">Home</a></li>\
++<li><a class=\"tab-update highlight-yellow\" href=\"/cn/update.html\" title=\"Update history\">Update</a></li>\
++<li><a class=\"tab-news highlight-purple\" href=\"/cn/news.html\" title=\"News\">News</a></li>\
++<li><a class=\"tab-howto highlight-red\" href=\"/cn/howto.html\" title=\"How to use\">Howto</a></li>\
++<li><a class=\"tab-stat highlight-green\" href=\"/cn/stat.html\" title=\"User statistic\">Statistic</a></li>\
++<li><a class=\"tab-flow highlight-blue\" href=\"/cn/flow.html\" title=\"Flow\">Flow</a></li>\
++</ul>\
++</div>" CRLF
++"<div id=\"headline\">" CRLF
++"<h4>404 - Not Found</h4>" CRLF
++"</div>" CRLF
++"<div id=\"page\"> \
++<div id=\"simple-page\">" CRLF
++
++"<div class=\"main\">" CRLF
++"<p>出错啦..对不起，您所请求的页面暂时不存在。</p>" CRLF
++"<p>Sorry, the page you requested doesn't exist right now.</p>" CRLF
++"<p>If you think this is a problem, please contact <a href=\"http://dev.bjtu.edu.cn/ideal/\">ideal</a>.</p>" CRLF
++"</div>" CRLF
++"<!-- brought to you by ideal (http://dev.bjtu.edu.cn/ideal) -->" CRLF
++"</div> <!-- simple-page -->" CRLF
++"</div> <!-- page -->" CRLF
++"<div id=\"footer\">" CRLF
++"<p>CopyLeft &copy; 2005 - 2011 <a href=\"http://www.bjtu.edu.cn\">BJTU</a>.</p>" CRLF
++"<p>" CRLF
++"If you have any question or suggestion, please send email to idealities AT gmail DOT com or post article at <a href=\"http://zhixing.bjtu.edu.cn/forum-222-1.html\">Zhixing</a>." CRLF
++"</p>" CRLF
++"</div> <!-- footer -->" CRLF
+ ;
+ 
+-
+ static char ngx_http_error_405_page[] =
+ "<html>" CRLF
+ "<head><title>405 Not Allowed</title></head>" CRLF
